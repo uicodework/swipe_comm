@@ -308,17 +308,45 @@ export function newOrder(order: OrderEventData) {
             "  and statusz='zart'");
 
         order.orderItems.forEach(r => {
-            let cikkkod = r.menuItemData.externalId;
-            let mennyiseg = r.quantity;
-            if (cikkkod != undefined) {
-                let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto) ` +
-                    ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I") `;
+            
+            if (r.variantData == undefined) {
+                let cikkkod = r.menuItemData.externalId;
+                let mennyiseg = r.quantity;
+                if (cikkkod != undefined) {
+                    let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto) ` +
+                        ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I") `;
 
-                SqlExecute(sql);
+                    SqlExecute(sql);
+                } else {
+                    console.log("Nincs GTSG azonosító megadva a cikknél!");
+                }
             } else {
-                console.log("Nincs GTSG azonosító megadva a cikknél!");
-            }
+                let cikkkod = r.variantData.externalId;
+                let mennyiseg = r.quantity;
+                if (cikkkod != undefined) {
+                    let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto) ` +
+                        ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I") `;
 
+                    SqlExecute(sql);
+                } else {
+                    console.log("Nincs GTSG azonosító megadva a variansnál!");
+                }
+
+            }
+            if (r.selectablesData != undefined){
+                r.selectablesData.forEach( s => {
+                    let cikkkod = s.externalId;
+                    let mennyiseg = r.quantity;
+                    if (cikkkod != undefined) {
+                        let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto) ` +
+                            ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I") `;
+    
+                        SqlExecute(sql);
+                    } else {
+                        console.log("Nincs GTSG azonosító megadva a selectables-nél!");
+                    }
+                    });    
+            }
         });
     } else {
         console.log("Nincs GTSG azonosító megadva az asztalnál!");
