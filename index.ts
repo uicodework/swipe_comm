@@ -164,7 +164,11 @@ export function startService() {
     async function getCsoportkod(csopkod: string) {
         return new Promise((resolve, reject) => {
             if (csopkod.length == 0) {
-                SqlExec("insert into cikkcsoportok (nev, focsoport, ikontipus) values('SWIPELIME',0,6)").then(() => {
+                SqlExec("insert into cikkcsoportok (nev, focsoport, ikontipus)"+
+                        "    SELECT * FROM (SELECT 'SWIPELIME',0,6) AS tmp"+
+                        "    WHERE NOT EXISTS ("+
+                        "        SELECT kod FROM cikkcsoportok WHERE nev = 'SWIPELIME'"+
+                        "    ) LIMIT 1 ").then(() => {
                     SqlOneValue('kod', 'cikkcsoportok', " nev='SWIPELIME'")
                         .then((ret) => { resolve(ret) })
                 })
@@ -191,7 +195,7 @@ export function startService() {
             })().then(() => {
 
                 let sql = `insert into cikk (nev, rovidnev, csoportkod, brutto, nettoar, afakulcs, kulsoazonosito, me, afakod) 
-                        values (${mysql.escape(nev)}, ${mysql.escape(rovidnev)}, ${csopkod}, ${brutto}, ${netto}, ${afakulcs}, ${mysql.escape(kulsoazonosito)}, ${mysql.escape(me)}, ${afakod})`;
+                        values (${mysql.escape(nev)}, ${mysql.escape(rovidnev)}, ${csopkod}, ${brutto}, round( ${netto},2), ${afakulcs}, ${mysql.escape(kulsoazonosito)}, ${mysql.escape(me)}, ${afakod})`;
 
                 SqlInsert(sql).then((ret) => {
                         //let val = JSON.parse(JSON.stringify(ret));
@@ -260,7 +264,7 @@ export function startService() {
         }
 
         let sql = "update cikk set nev = " + mysql.escape(cikk.data.label.hu) +
-                  " , tiltott = " + mysql.escape(tiltott) +  
+                  " , tiltott = " + mysql.escape(tiltott) + 
                   " where kod = " + cikk.data.externalId;
 
         SqlExecute( sql );
@@ -285,5 +289,8 @@ export function startService() {
         SqlExecute(sql);
     }
 
+    function etlapTetelDelete(cikkkod: number){
+        SqlExecute(`delete from etlaptetelek WHERE cikkkod = ${cikkkod}`);
+    }
 
 }
