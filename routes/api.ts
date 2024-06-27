@@ -153,62 +153,73 @@ async function getMySQLInfo() {
 
 
 export function SqlExecute(sql: string) {
-    console.log('SqlExecute: ' + sql);
-
-    pool.getConnection((err: any, connection: any) => {
-        if (err) throw err;
-
-        connection.query(sql, (err: any, rows: any) => {
-            connection.release(); // return the connection to pool
-            console.log(`Rows: ${rows.affectedRows}`);
-        });
-    });
-
-}
-
-export async function SqlExec(sql: string) {
-    return new Promise((resolve, reject) => {
-        console.log('SqlExec: ' + sql);
+    try {
+        console.log('SqlExecute: ' + sql);
 
         pool.getConnection((err: any, connection: any) => {
             if (err) throw err;
 
             connection.query(sql, (err: any, rows: any) => {
                 connection.release(); // return the connection to pool
-                if (err) {
-                    reject(err);
-                } else {
-                    // console.log(rows);
-                    console.log(`Rows: ${rows.affectedRows}`);
-                    resolve(rows);
-                }
+                console.log(`Rows: ${rows.affectedRows}`);
             });
         });
+    } catch (e) {
+        console.error("SqlExecute error:" + (e as Error).message);
+    }
+}
 
-    })
+export async function SqlExec(sql: string) {
+    try {
+        return new Promise((resolve, reject) => {
+            console.log('SqlExec: ' + sql);
+
+            pool.getConnection((err: any, connection: any) => {
+                if (err) throw err;
+
+                connection.query(sql, (err: any, rows: any) => {
+                    connection.release(); // return the connection to pool
+                    if (err) {
+                        reject(err);
+                    } else {
+                        // console.log(rows);
+                        console.log(`Rows: ${rows.affectedRows}`);
+                        resolve(rows);
+                    }
+                });
+            });
+
+        })
+    } catch (e) {
+        console.error("SqlExec error:" + (e as Error).message);
+    }
 
 }
 
 export async function SqlInsert(sql: string) {
-    return new Promise<number>((resolve, reject) => {
-        console.log('SqlInsert: ' + sql);
-        pool.getConnection((err: any, connection: any) => {
-            if (err) throw err;
+    try {
+        return new Promise<number>((resolve, reject) => {
+            console.log('SqlInsert: ' + sql);
+            pool.getConnection((err: any, connection: any) => {
+                if (err) throw err;
 
-            connection.query(sql, (err: any, rows: any) => {
+                connection.query(sql, (err: any, rows: any) => {
 
-                connection.release(); // return the connection to pool
-                if (err) {
-                    reject(err);
-                } else {
-                    // console.log(rows);
-                    console.log(`Inserted ID: ${rows.insertId}`);
-                    resolve(rows.insertId);
-                }
+                    connection.release(); // return the connection to pool
+                    if (err) {
+                        reject(err);
+                    } else {
+                        // console.log(rows);
+                        console.log(`Inserted ID: ${rows.insertId}`);
+                        resolve(rows.insertId);
+                    }
+                });
             });
-        });
 
-    })
+        })
+    } catch (e) {
+        console.error("SqlInsert error:" + (e as Error).message);
+    }
 
 }
 
@@ -308,7 +319,7 @@ export function newOrder(order: OrderEventData) {
             "  and statusz='zart'");
 
         order.orderItems.forEach(r => {
-            
+
             if (r.variantData == undefined) {
                 let cikkkod = r.menuItemData.externalId;
                 let mennyiseg = r.quantity;
@@ -333,19 +344,19 @@ export function newOrder(order: OrderEventData) {
                 }
 
             }
-            if (r.selectablesData != undefined){
-                r.selectablesData.forEach( s => {
+            if (r.selectablesData != undefined) {
+                r.selectablesData.forEach(s => {
                     let cikkkod = s.externalId;
                     let mennyiseg = r.quantity;
                     if (cikkkod != undefined) {
                         let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto) ` +
                             ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I") `;
-    
+
                         SqlExecute(sql);
                     } else {
                         console.log("Nincs GTSG azonosító megadva a selectables-nél!");
                     }
-                    });    
+                });
             }
         });
     } else {
