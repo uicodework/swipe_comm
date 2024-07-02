@@ -323,9 +323,13 @@ export function newOrder(order: OrderEventData) {
             if (r.variantData == undefined) {
                 let cikkkod = r.menuItemData.externalId;
                 let mennyiseg = r.quantity;
+                let uzenet = r.additionalRequests;
+                if (uzenet == undefined){
+                    uzenet = "";
+                }
                 if (cikkkod != undefined) {
-                    let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto) ` +
-                        ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I") `;
+                    let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto,uzenet) ` +
+                        ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I", ${mysql.escape(uzenet)}) `;
 
                     SqlExecute(sql);
                 } else {
@@ -334,9 +338,13 @@ export function newOrder(order: OrderEventData) {
             } else {
                 let cikkkod = r.variantData.externalId;
                 let mennyiseg = r.quantity;
+                let uzenet = r.additionalRequests;
+                if (uzenet == undefined){
+                    uzenet = "";
+                }
                 if (cikkkod != undefined) {
-                    let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto) ` +
-                        ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I") `;
+                    let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto, uzenet) ` +
+                        ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I", ${mysql.escape(uzenet)}) `;
 
                     SqlExecute(sql);
                 } else {
@@ -348,9 +356,13 @@ export function newOrder(order: OrderEventData) {
                 r.selectablesData.forEach(s => {
                     let cikkkod = s.externalId;
                     let mennyiseg = r.quantity;
+                    let uzenet = r.additionalRequests;
+                    if (uzenet == undefined){
+                        uzenet = "";
+                    }
                     if (cikkkod != undefined) {
-                        let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto) ` +
-                            ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I") `;
+                        let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto, uzenet) ` +
+                            ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I", ${mysql.escape(uzenet)}) `;
 
                         SqlExecute(sql);
                     } else {
