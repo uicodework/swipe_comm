@@ -13,7 +13,7 @@ app.use(bodyParser.urlencoded({ extended: false }))
 // parse application/json
 app.use(bodyParser.json())
 
-import api, { SqlExec, SqlExecute, SqlInsert, SqlOneValue, SqlOneValueDbl, eloZaras, newOrder } from "./routes/api";
+import api, { SqlExec, SqlExecute, SqlInsert, SqlOneValue, SqlOneValueDbl, eloZaras, newOrder, newOrderBulk } from "./routes/api";
 
 process.argv.forEach((val, index) => {
     if (val === "--autostart")
@@ -99,7 +99,7 @@ export function startService() {
                         console.log(task.data.eventType, JSON.stringify(task.data.eventData, null, 2));
 
                         if (task.data.eventType === "order-items-confirmed") {
-                            newOrder(task.data.eventData as OrderEventData);
+                            newOrderBulk(task.data.eventData as OrderEventData);
                         }
                         else if (task.data.eventType === "payment-requested") {
                             if (task.data.eventData.tableData.externalId !== undefined)

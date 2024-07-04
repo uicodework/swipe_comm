@@ -308,11 +308,13 @@ export async function SqlOneValueStr__(sql: string) {
     });
 }
 
-export function newOrder(order: OrderEventData) {
+export function newOrderBulk(order: OrderEventData) {
     console.log("Új rendelés");
     console.log("Asztal: " + order.tableData.externalId);
 
     let asztal = order.tableData.externalId;
+    let values: any[][] = [];
+
     if (asztal != undefined) {
         SqlExecute("update asztalok set statusz='nyitott', nyito='SWIPE' " +
             " where asztalszam='" + asztal + "'" +
@@ -328,8 +330,79 @@ export function newOrder(order: OrderEventData) {
                     uzenet = "";
                 }
                 if (cikkkod != undefined) {
-                    let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto,uzenet) ` +
-                        ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I", ${mysql.escape(uzenet)}) `;
+                    values.push([cikkkod, mennyiseg, "SWIPE", 0, 0, asztal, 1, "", "I", uzenet]);
+                } else {
+                    console.log("Nincs GTSG azonosító megadva a cikknél!");
+                }
+            } else {
+                let cikkkod = r.variantData.externalId;
+                let mennyiseg = r.quantity;
+                let uzenet = r.additionalRequests;
+                if (uzenet == undefined){
+                    uzenet = "";
+                }
+                if (cikkkod != undefined) {
+                    values.push([cikkkod, mennyiseg, "SWIPE", 0, 0, asztal, 1, "", "I", uzenet]);
+                } else {
+                    console.log("Nincs GTSG azonosító megadva a variansnál!");
+                }
+
+            }
+            if (r.selectablesData != undefined) {
+                r.selectablesData.forEach(s => {
+                    let cikkkod = s.externalId;
+                    let mennyiseg = r.quantity;
+                    let uzenet = r.additionalRequests;
+                    if (uzenet == undefined){
+                        uzenet = "";
+                    }
+                    if (cikkkod != undefined) {
+                        values.push([cikkkod, mennyiseg, "SWIPE", 0, 0, asztal, 1, "", "I", uzenet]);
+                    } else {
+                        console.log("Nincs GTSG azonosító megadva a selectables-nél!");
+                    }
+                });
+            }
+        });
+        
+        let sql = "insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto, uzenet) values ? ";
+        
+        pool.getConnection((err: any, connection: any) => {
+            if (err) throw err;
+
+            connection.query(sql, [values], (err: any, rows: any) => {
+                connection.release(); // return the connection to pool
+                console.log(`Rows: ${rows.affectedRows}`);
+            });
+        });
+
+    } else {
+        console.log("Nincs GTSG azonosító megadva az asztalnál!");
+    }
+}
+
+export function newOrder(order: OrderEventData) {
+    console.log("Új rendelés");
+    console.log("Asztal: " + order.tableData.externalId);
+
+    let asztal = order.tableData.externalId;
+    if (asztal != undefined) {
+        SqlExecute("update asztalok set statusz='nyitott', nyito='SWIPE' " +
+            " where asztalszam='" + asztal + "'" +
+            "  and statusz='zart'");
+        let sorrend = 0;
+        order.orderItems.forEach(r => {
+            sorrend++;
+            if (r.variantData == undefined) {
+                let cikkkod = r.menuItemData.externalId;
+                let mennyiseg = r.quantity;
+                let uzenet = r.additionalRequests;
+                if (uzenet == undefined){
+                    uzenet = "";
+                }
+                if (cikkkod != undefined) {
+                    let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto,uzenet,sorrend) ` +
+                        ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I", ${mysql.escape(uzenet)}, ${sorrend} ) `;
 
                     SqlExecute(sql);
                 } else {
@@ -343,8 +416,8 @@ export function newOrder(order: OrderEventData) {
                     uzenet = "";
                 }
                 if (cikkkod != undefined) {
-                    let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto, uzenet) ` +
-                        ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I", ${mysql.escape(uzenet)}) `;
+                    let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto, uzenet,sorrend) ` +
+                        ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I", ${mysql.escape(uzenet)}, ${sorrend}) `;
 
                     SqlExecute(sql);
                 } else {
@@ -361,8 +434,8 @@ export function newOrder(order: OrderEventData) {
                         uzenet = "";
                     }
                     if (cikkkod != undefined) {
-                        let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto, uzenet) ` +
-                            ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I", ${mysql.escape(uzenet)}) `;
+                        let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto, uzenet,sorrend) ` +
+                            ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I", ${mysql.escape(uzenet)}, ${sorrend}) `;
 
                         SqlExecute(sql);
                     } else {
