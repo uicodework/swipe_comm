@@ -323,25 +323,25 @@ export function newOrderBulk(order: OrderEventData) {
         order.orderItems.forEach(r => {
 
             if (r.variantData == undefined) {
-                let cikkkod = r.menuItemData.externalId;
+                let cikkkod = r.menuItemData.externalId ?? "";
                 let mennyiseg = r.quantity;
                 let uzenet = r.additionalRequests;
-                if (uzenet == undefined){
+                if (uzenet == undefined) {
                     uzenet = "";
                 }
-                if (cikkkod != undefined) {
+                if (cikkkod.length>0) {
                     values.push([cikkkod, mennyiseg, "SWIPE", 0, 0, asztal, 1, "", "I", uzenet]);
                 } else {
                     console.log("Nincs GTSG azonosító megadva a cikknél!");
                 }
             } else {
-                let cikkkod = r.variantData.externalId;
+                let cikkkod = r.variantData.externalId ?? "";
                 let mennyiseg = r.quantity;
                 let uzenet = r.additionalRequests;
-                if (uzenet == undefined){
+                if (uzenet == undefined) {
                     uzenet = "";
                 }
-                if (cikkkod != undefined) {
+                if (cikkkod.length>0) {
                     values.push([cikkkod, mennyiseg, "SWIPE", 0, 0, asztal, 1, "", "I", uzenet]);
                 } else {
                     console.log("Nincs GTSG azonosító megadva a variansnál!");
@@ -350,13 +350,13 @@ export function newOrderBulk(order: OrderEventData) {
             }
             if (r.selectablesData != undefined) {
                 r.selectablesData.forEach(s => {
-                    let cikkkod = s.externalId;
+                    let cikkkod = s.externalId ?? "";
                     let mennyiseg = r.quantity;
                     let uzenet = r.additionalRequests;
-                    if (uzenet == undefined){
+                    if (uzenet == undefined) {
                         uzenet = "";
                     }
-                    if (cikkkod != undefined) {
+                    if (cikkkod.length>0) {
                         values.push([cikkkod, mennyiseg, "SWIPE", 0, 0, asztal, 1, "", "I", uzenet]);
                     } else {
                         console.log("Nincs GTSG azonosító megadva a selectables-nél!");
@@ -364,17 +364,19 @@ export function newOrderBulk(order: OrderEventData) {
                 });
             }
         });
-        
-        let sql = "insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto, uzenet) values ? ";
-        
-        pool.getConnection((err: any, connection: any) => {
-            if (err) throw err;
 
-            connection.query(sql, [values], (err: any, rows: any) => {
-                connection.release(); // return the connection to pool
-                console.log(`Rows: ${rows.affectedRows}`);
+        if (values.length > 0) {
+            let sql = "insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto, uzenet) values ? ";
+
+            pool.getConnection((err: any, connection: any) => {
+                if (err) throw err;
+
+                connection.query(sql, [values], (err: any, rows: any) => {
+                    connection.release(); // return the connection to pool
+                    console.log(`Rows: ${rows.affectedRows}`);
+                });
             });
-        });
+        }
 
     } else {
         console.log("Nincs GTSG azonosító megadva az asztalnál!");
@@ -397,7 +399,7 @@ export function newOrder(order: OrderEventData) {
                 let cikkkod = r.menuItemData.externalId;
                 let mennyiseg = r.quantity;
                 let uzenet = r.additionalRequests;
-                if (uzenet == undefined){
+                if (uzenet == undefined) {
                     uzenet = "";
                 }
                 if (cikkkod != undefined) {
@@ -412,7 +414,7 @@ export function newOrder(order: OrderEventData) {
                 let cikkkod = r.variantData.externalId;
                 let mennyiseg = r.quantity;
                 let uzenet = r.additionalRequests;
-                if (uzenet == undefined){
+                if (uzenet == undefined) {
                     uzenet = "";
                 }
                 if (cikkkod != undefined) {
@@ -430,7 +432,7 @@ export function newOrder(order: OrderEventData) {
                     let cikkkod = s.externalId;
                     let mennyiseg = r.quantity;
                     let uzenet = r.additionalRequests;
-                    if (uzenet == undefined){
+                    if (uzenet == undefined) {
                         uzenet = "";
                     }
                     if (cikkkod != undefined) {
