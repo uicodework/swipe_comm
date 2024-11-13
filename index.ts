@@ -1,6 +1,6 @@
 import 'dotenv/config';
-import { Client, TaskCommand, TaskEvent, Environment, OrderEventData, UniversalMenuItem } from 'swipelime-client-node';
-import { NativeTable, ServiceHandler, TablesEventData } from 'swipelime-client-node/dist/ServiceHandler';
+import { Client, TaskCommand, TaskEvent, Environment, OrderEventData, UniversalMenuItem, LangType } from 'swipelime-client-node';
+import { ElementIdData, NativeTable, ServiceHandler, TablesEventData } from 'swipelime-client-node/dist/ServiceHandler';
 var bodyParser = require('body-parser')
 const mysql = require('mysql');
 
@@ -13,12 +13,16 @@ app.use(bodyParser.urlencoded({ extended: false }))
 // parse application/json
 app.use(bodyParser.json())
 
-import api, { SqlExec, SqlExecute, SqlInsert, SqlOneValue, SqlOneValueDbl, eloZaras, newOrder, newOrderBulk } from "./routes/api";
+import api, { SqlExec, SqlExecute, SqlInsert, SqlOneValue, SqlOneValueDbl, dbvaltozas, eloZaras, idExists, newOrder, newOrderBulk } from "./routes/api";
 
 process.argv.forEach((val, index) => {
     if (val === "--autostart")
         startService();
     //console.log(`${index}: ${val}`);
+});
+
+process.on('unhandledRejection', (reason, p) => {
+    console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
 });
 
 app.use('/api', api);
@@ -34,8 +38,15 @@ app.get('/verzio', (req: any, res: any) => {
 
 app.get('/start', (req: any, res: any) => {
     startService().then((ret) => res.json('status:' + ret));
-
+    dbvaltozas();
 });
+
+app.get('/maptest', (req: any, res: any) => {
+    maptest();
+    res.send("verzió:" + process.env['VERZIO']);
+});
+
+
 
 app.get('/isready', (req: any, res: any) => {
     try {
@@ -77,7 +88,7 @@ export function startService() {
         (async () => {
             client.emitter.on('connected', async () => {
                 console.log('swipelime client connected');
-                console.log('client version: '+ client.clientVersion);
+                console.log('client version: ' + client.clientVersion);
             });
 
             client.emitter.on('login', async (user) => {
@@ -108,40 +119,73 @@ export function startService() {
                         else if (task.data.eventType === "universal-menu-elements-added") {
                             const cikkek = task.data.eventData as UniversalMenuItem[];
                             cikkek.forEach(c => {
-                                newCikk(c).then((ret) => {
-                                    c.data.externalId = String(ret);
-                                    console.log("upsertUniversalMenuItems");
-                                    console.log(JSON.stringify(c.data, null, 2));
-                                    serviceHandler.upsertUniversalMenuItems([c.data]).then((r) => { console.log(r) }).catch((e) => { console.error(e) });
-                                    etlapTetelInsert(ret as number);
-                                });
-
+                                if (c.type === "item") {
+                                    newCikk(c).then((ret) => {
+                                        c.data.externalId = String(ret);
+                                        console.log("upsertUniversalMenuItems");
+                                        console.log(JSON.stringify(c.data, null, 2));
+                                        serviceHandler.upsertUniversalMenuItems([c.data]).then((r) => { console.log(r) }).catch((e) => { console.error(e) });
+                                        etlapTetelInsert(ret as number);
+                                    });
+                                }
                             });
-                        } 
+                        }
                         else if (task.data.eventType === "universal-menu-elements-updated") {
                             const cikkek = task.data.eventData as UniversalMenuItem[];
                             cikkek.forEach(c => {
-                                if (c.type === "item") { 
+                                if (c.type === "item") {
                                     if (c.data.externalId != undefined) {
                                         updateCikk(c);
                                     }
                                 }
                             });
-                        
+
                         }
                         else if (task.data.eventType === "tables-added") {
                             console.log("új asztal");
                             const asztalok = task.data.eventData as NativeTable[];
-                            asztalok.forEach( asztal => {
+                            asztalok.forEach(asztal => {
                                 ujasztal(asztal.id, asztal.label.hu, asztal.externalId);
                             });
                             //let asztal = task.data.eventData[0];
+                        }
+                        else if (task.data.eventType === "order-items-moved") {
+                            console.log("áthelyez");
+                            const asztalrol = task.data.eventData.fromTableData.externalId; // as NativeTable;
+                            const asztalra = task.data.eventData.toTableData.externalId; // as NativeTable;
+                            console.log(asztalrol + "->" + asztalra);
+                            task.data.eventData.orderItems.forEach(r => {
+                                SqlExec(`update rendelesek set asztalkod = ${mysql.escape(asztalra)} where asztalkod = ${mysql.escape(asztalrol)} and ifnull(statusz,"0") in ("0","1") and kulsoid=${mysql.escape(r.orderItemId)}`);
+                            });
+                            // console.log(JSON.stringify(task.data,null,2));
+
                         }
                         await task.confirm();
 
                     }
                     else if (task instanceof TaskCommand) {
                         console.log(task.data.commandType, JSON.stringify(task.data, null, 2));
+                        if (task.data.commandType === "confirm-universal-menu-elements") {
+                            const cikkek = task.data.commandData.elements as ElementIdData[];
+                            idExists(cikkek).then((ret) => {
+                                console.log(ret);
+                                serviceHandler.confirmUniversalMenuElementsCommand(task, ret);
+                            });
+                            /*const orderPromises = orders.map(order => api.sendOrder(order));
+                              Promise.all(orderPromisses).then(arrayOfResponses => {
+                                  // do your stuff
+                              })
+                              */
+                            /*   const ret2 = cikkek.map(c => ({c.externalId: isExistsElement(c.externalId)}));
+                              
+                              const ret = cikkek.map(c => {
+                                      if (c.externalId != undefined) {
+                                          isExistsElement(c.externalId);
+                                      }
+                              });
+                              console.log(ret);
+                              */
+                        }
 
                         await serviceHandler.confirmTestCommand(task);
                     }
@@ -161,17 +205,21 @@ export function startService() {
         )
     }
 
+    function isExistsElement(externalId: string) {
+        return { externalId: true };
+    }
+
     async function getCsoportkod(csopkod: string) {
         return new Promise((resolve, reject) => {
             if (csopkod.length == 0) {
-                SqlExec("insert into cikkcsoportok (nev, focsoport, ikontipus)"+
-                        "    SELECT * FROM (SELECT 'SWIPELIME',0,6) AS tmp"+
-                        "    WHERE NOT EXISTS ("+
-                        "        SELECT kod FROM cikkcsoportok WHERE nev = 'SWIPELIME'"+
-                        "    ) LIMIT 1 ").then(() => {
-                    SqlOneValue('kod', 'cikkcsoportok', " nev='SWIPELIME'")
-                        .then((ret) => { resolve(ret) })
-                })
+                SqlExec("insert into cikkcsoportok (nev, focsoport, ikontipus)" +
+                    "    SELECT * FROM (SELECT 'SWIPELIME',0,6) AS tmp" +
+                    "    WHERE NOT EXISTS (" +
+                    "        SELECT kod FROM cikkcsoportok WHERE nev = 'SWIPELIME'" +
+                    "    ) LIMIT 1 ").then(() => {
+                        SqlOneValue('kod', 'cikkcsoportok', " nev='SWIPELIME'")
+                            .then((ret) => { resolve(ret) })
+                    })
             }
             else {
                 resolve(csopkod);
@@ -181,8 +229,26 @@ export function startService() {
 
     async function insertCikk(csopkod: string, c: UniversalMenuItem) {
         return new Promise((resolve, reject) => {
-            let nev = c.data.label.hu?.substring(0,119);
-            let rovidnev = nev?.substring(0,24);
+            let nyelv = process.env['SWIPELIME_NYELV'] || "hu";
+            type LangKey = keyof LangType;
+
+            let nev = c.data.label[nyelv as LangKey] || '';
+            if (nev.length == 0)
+                nev = c.data.label.hu || '';
+
+            nev = nev.substring(0, 119);
+
+            //let nev = c.data.label.hu?.substring(0, 119);
+
+            let internalnev = c.data.internalName;
+
+            let rovidnev = "";
+            if (internalnev == undefined) {
+                rovidnev = nev?.substring(0, 79) || '';
+            }
+            else {
+                rovidnev = internalnev.substring(0, 79)
+            }
             let brutto = c.data.price;
             let netto = brutto / 1.27;
             let afakulcs = 21.26;
@@ -198,10 +264,10 @@ export function startService() {
                         values (${mysql.escape(nev)}, ${mysql.escape(rovidnev)}, ${csopkod}, ${brutto}, round( ${netto},2), ${afakulcs}, ${mysql.escape(kulsoazonosito)}, ${mysql.escape(me)}, ${afakod})`;
 
                 SqlInsert(sql).then((ret) => {
-                        //let val = JSON.parse(JSON.stringify(ret));
-                        //let ujid = val[0].res;
-                        console.log("új id: " + ret);
-                        resolve(ret);
+                    //let val = JSON.parse(JSON.stringify(ret));
+                    //let ujid = val[0].res;
+                    console.log("új id: " + ret);
+                    resolve(ret);
                 });
             });
         })
@@ -243,7 +309,7 @@ export function startService() {
             getserviceHandler().upsertTables([table]).then((ret) => {
                 console.log("upsertTables");
                 console.log(ret);
-                
+
             });
 
         } else {
@@ -256,41 +322,90 @@ export function startService() {
 
     }
 
-    function updateCikk(cikk: UniversalMenuItem){
-        
+    function updateCikk(cikk: UniversalMenuItem) {
+
         let tiltott = "N";
-        if (!cikk.data.enabled){
+        let aktiv = "I";
+        if (!cikk.data.enabled) {
             tiltott = "I";
+            aktiv = "N";
         }
+        //  let internalnev = cikk.data.internalName;
+        //let nev = cikk.data.label.hu?.substring(0, 119);
+        let nyelv = process.env['SWIPELIME_NYELV'] || "hu";
+        type LangKey = keyof LangType;
 
-        let sql = "update cikk set nev = " + mysql.escape(cikk.data.label.hu) +
-                  " , tiltott = " + mysql.escape(tiltott) + 
-                  " where kod = " + cikk.data.externalId;
-
-        SqlExecute( sql );
+        let nev = cikk.data.label[nyelv as LangKey] || '';
         
-        SqlOneValueDbl("afakulcs", "cikk", "kod = " + cikk.data.externalId).then( (afakulcs) => {
+        if (nev.length == 0)
+            nev = cikk.data.label.hu || '';
+
+        nev = nev.substring(0, 119);
+
+
+        let internalnev = cikk.data.internalName;
+        console.log(internalnev);
+        let rovidnev = "";
+        if (internalnev == undefined) {
+            rovidnev = nev?.substring(0, 79) || '';
+        }
+        else {
+            rovidnev = internalnev.substring(0, 79)
+        }
+        let sql = "update cikk set nev = " + mysql.escape(nev) +
+            ", rovidnev= " + mysql.escape(rovidnev) +
+            //   " , tiltott = " + mysql.escape(tiltott) + 
+            " where kod = " + cikk.data.externalId;
+
+        SqlExecute(sql);
+
+        SqlOneValueDbl("afakulcs", "cikk", "kod = " + cikk.data.externalId).then((afakulcs) => {
             let brutto = cikk.data.price;
-            let netto = (100.0-afakulcs)/100.0 * brutto;
+            let netto = (100.0 - afakulcs) / 100.0 * brutto;
             sql = `update cikk set brutto = ${brutto}, nettoar =round( ${netto},2) where kod = ${cikk.data.externalId}`;
             SqlExecute(sql);
-            sql = `update etlaptetelek set brutto = ${brutto}, nettoar =round( ${netto},2) where cikkkod = ${cikk.data.externalId}`;
+            sql = `update etlaptetelek set brutto = ${brutto}, nettoar =round( ${netto},2), aktiv= ${mysql.escape(aktiv)}  where cikkkod = ${cikk.data.externalId}`;
             SqlExecute(sql);
 
         });
 
     }
 
-    function etlapTetelInsert(cikkkod: number){
+    function etlapTetelInsert(cikkkod: number) {
         let sql = `INSERT INTO etlaptetelek (etlapkod, cikkkod, brutto, nettoar, aktiv) ` +
-        ` SELECT e.kod, c.kod, c.brutto, c.nettoar, 'I' ` +
-        ` FROM cikk c, etlap e ` +
-        ` WHERE c.kod = ${cikkkod}`; 
+            ` SELECT e.kod, c.kod, c.brutto, c.nettoar, 'I' ` +
+            ` FROM cikk c, etlap e ` +
+            ` WHERE c.kod = ${cikkkod}` +
+            ` AND c.brutto>0`;
         SqlExecute(sql);
     }
 
-    function etlapTetelDelete(cikkkod: number){
+    function etlapTetelDelete(cikkkod: number) {
         SqlExecute(`delete from etlaptetelek WHERE cikkkod = ${cikkkod}`);
     }
 
+
 }
+
+function ttt(id: string) {
+    let iid = id;
+    return { [id]: true };
+}
+
+function maptest() {
+    let cikkek = [
+        {
+            "id": "xzke9tCBxRrb9cvzC",
+            "externalId": "908"
+        },
+        {
+            "id": "xzke9Rrb9cvzC",
+            "externalId": "909"
+        }
+    ];
+    console.log(cikkek);
+    const ret = cikkek.map(c => ttt(c.externalId));
+    console.log(ret);
+}
+
+

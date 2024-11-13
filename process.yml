@@ -1,0 +1,4 @@
+apps:
+  - script: index.ts             # Application's startup file name
+    interpreter: 'node'                  # Number of processes that must run in parallel, you can change this if you want
+    exec_mode: cluster    

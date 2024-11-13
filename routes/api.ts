@@ -1,5 +1,6 @@
 import { OrderEventData, TaskCommandData } from "swipelime-client-node";
 import { getserviceHandler, startService } from "..";
+import { json } from "body-parser";
 
 var express = require('express');
 const mysql = require('mysql');
@@ -70,6 +71,7 @@ router.post('/', (req: any, res: any) => {
         process.env['SWIPELIME_PASSWORD'] = data.SWIPELIME_PASSWORD;
         process.env['SWIPELIME_TENANT'] = data.SWIPELIME_TENANT;
         process.env['SWIPELIME_ENVIRONMENT'] = data.SWIPELIME_ENVIRONMENT;
+        process.env['SWIPELIME_NYELV'] = data.SWIPELIME_NYELV;
         process.env['MYSQL_DB'] = data.MYSQL_DB;
         process.env['MYSQL_USER'] = data.MYSQL_USER;
         process.env['MYSQL_PASSW'] = data.MYSQL_PASSW;
@@ -83,6 +85,9 @@ router.post('/', (req: any, res: any) => {
             database: process.env['MYSQL_DB'],
             debug: false
         });
+
+        dbvaltozas();
+
         startService().then((ret) => res.send(ret)).catch((ret) => { console.log(ret) });
 
         //res.send("OK");
@@ -161,7 +166,10 @@ export function SqlExecute(sql: string) {
 
             connection.query(sql, (err: any, rows: any) => {
                 connection.release(); // return the connection to pool
-                console.log(`Rows: ${rows.affectedRows}`);
+                if (err)
+                    console.error("SqlExecute: " + err);
+                else
+                    console.log(`Rows: ${rows.affectedRows}`);
             });
         });
     } catch (e) {
@@ -180,6 +188,7 @@ export async function SqlExec(sql: string) {
                 connection.query(sql, (err: any, rows: any) => {
                     connection.release(); // return the connection to pool
                     if (err) {
+                        console.error("SqlExec: " + err);
                         reject(err);
                     } else {
                         // console.log(rows);
@@ -207,6 +216,7 @@ export async function SqlInsert(sql: string) {
 
                     connection.release(); // return the connection to pool
                     if (err) {
+                        console.error("SqlExec: " + err);
                         reject(err);
                     } else {
                         // console.log(rows);
@@ -309,127 +319,144 @@ export async function SqlOneValueStr__(sql: string) {
 }
 
 export function newOrderBulk(order: OrderEventData) {
-    console.log("Új rendelés");
-    console.log("Asztal: " + order.tableData.externalId);
+    try {
+        console.log("Új rendelés");
+        console.log("Asztal: " + order.tableData.externalId);
+        order.orderItems[2].customerData.position
+        let asztal = order.tableData.externalId;
+        let values: any[][] = [];
 
-    let asztal = order.tableData.externalId;
-    let values: any[][] = [];
+        if (asztal != undefined) {
+            SqlExecute("update asztalok set statusz='nyitott', nyito='SWIPE' " +
+                " where asztalszam='" + asztal + "'" +
+                "  and statusz='zart'");
 
-    if (asztal != undefined) {
-        SqlExecute("update asztalok set statusz='nyitott', nyito='SWIPE' " +
-            " where asztalszam='" + asztal + "'" +
-            "  and statusz='zart'");
+            order.orderItems.forEach(r => {
 
-        order.orderItems.forEach(r => {
-
-            if (r.variantData == undefined) {
-                let cikkkod = r.menuItemData.externalId ?? "";
-                let mennyiseg = r.quantity;
-                let uzenet = r.additionalRequests;
-                if (uzenet == undefined) {
-                    uzenet = "";
-                }
-                if (cikkkod.length>0) {
-                    values.push([cikkkod, mennyiseg, "SWIPE", 0, 0, asztal, 1, "", "I", uzenet]);
-                } else {
-                    console.log("Nincs GTSG azonosító megadva a cikknél!");
-                }
-            } else {
-                let cikkkod = r.variantData.externalId ?? "";
-                let mennyiseg = r.quantity;
-                let uzenet = r.additionalRequests;
-                if (uzenet == undefined) {
-                    uzenet = "";
-                }
-                if (cikkkod.length>0) {
-                    values.push([cikkkod, mennyiseg, "SWIPE", 0, 0, asztal, 1, "", "I", uzenet]);
-                } else {
-                    console.log("Nincs GTSG azonosító megadva a variansnál!");
-                }
-
-            }
-            if (r.selectablesData != undefined) {
-                r.selectablesData.forEach(s => {
-                    let cikkkod = s.externalId ?? "";
+                if (r.variantData == undefined) {
+                    let cikkkod = r.menuItemData.externalId ?? "";
                     let mennyiseg = r.quantity;
+                    let swipeid = r.orderItemId;
                     let uzenet = r.additionalRequests;
+                    let szek = r.customerData.position;
+                    if ((szek < 0) || (szek > 99)) {
+                        szek = 1;
+                    }
                     if (uzenet == undefined) {
                         uzenet = "";
                     }
-                    if (cikkkod.length>0) {
-                        values.push([cikkkod, mennyiseg, "SWIPE", 0, 0, asztal, 1, "", "I", uzenet]);
+                    if (cikkkod.length > 0) {
+                        while (mennyiseg > 0) {
+                            values.push([cikkkod, 1, "SWIPE", 0, 0, asztal, szek, "", "I", uzenet, swipeid]);
+                            mennyiseg--;
+                        }
                     } else {
-                        console.log("Nincs GTSG azonosító megadva a selectables-nél!");
+                        console.log("Nincs GTSG azonosító megadva a cikknél!");
                     }
+                } else {
+                    let cikkkod = r.variantData.externalId ?? "";
+                    let mennyiseg = r.quantity;
+                    let uzenet = r.additionalRequests;
+                    let swipeid = r.orderItemId;
+                    let szek = r.customerData.position;
+                    if ((szek < 0) || (szek > 99)) {
+                        szek = 1;
+                    }
+
+                    if (uzenet == undefined) {
+                        uzenet = "";
+                    }
+                    if (cikkkod.length > 0) {
+                        while (mennyiseg > 0) {
+                            values.push([cikkkod, 1, "SWIPE", 0, 0, asztal, szek, "", "I", uzenet, swipeid]);
+                            mennyiseg--;
+                        }
+                    } else {
+                        console.log("Nincs GTSG azonosító megadva a variansnál!");
+                    }
+
+                }
+                if (r.selectablesData != undefined) {
+                    r.selectablesData.forEach(s => {
+                        let cikkkod = s.externalId ?? "";
+                        let mennyiseg = r.quantity;
+                        let swipeid = r.orderItemId;
+                        let uzenet = r.additionalRequests;
+                        if (uzenet == undefined) {
+                            uzenet = "";
+                        }
+                        let szek = r.customerData.position;
+                        if ((szek < 0) || (szek > 99)) {
+                            szek = 1;
+                        }
+                        if (cikkkod.length > 0) {
+                            while (mennyiseg > 0) {
+                                values.push([cikkkod, 1, "SWIPE", 0, 0, asztal, szek, "", "I", uzenet, swipeid]);
+                                mennyiseg--;
+                            }
+                        } else {
+                            console.log("Nincs GTSG azonosító megadva a selectables-nél!");
+                        }
+                    });
+                }
+            });
+
+            if (values.length > 0) {
+                let sql = "insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto, uzenet, kulsoid) values ? ";
+                console.log("newOrderBulk: " + sql);
+                console.log(JSON.stringify(values, null, 2));
+                pool.getConnection((err: any, connection: any) => {
+                    if (err) throw err;
+
+                    connection.query(sql, [values], (err: any, rows: any) => {
+                        connection.release(); // return the connection to pool
+                        if (err == undefined) {
+                            console.log(`Rows: ${rows.affectedRows}`);
+                        }
+                        else {
+                            console.error("MySQL error:" + err);
+                        }
+                    });
                 });
             }
-        });
 
-        if (values.length > 0) {
-            let sql = "insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto, uzenet) values ? ";
-
-            pool.getConnection((err: any, connection: any) => {
-                if (err) throw err;
-
-                connection.query(sql, [values], (err: any, rows: any) => {
-                    connection.release(); // return the connection to pool
-                    console.log(`Rows: ${rows.affectedRows}`);
-                });
-            });
+        } else {
+            console.log("Nincs GTSG azonosító megadva az asztalnál!");
         }
-
-    } else {
-        console.log("Nincs GTSG azonosító megadva az asztalnál!");
+    } catch (e) {
+        console.error("newOrderBulk error:" + (e as Error).message);
     }
 }
 
 export function newOrder(order: OrderEventData) {
     console.log("Új rendelés");
     console.log("Asztal: " + order.tableData.externalId);
+    try {
+        let asztal = order.tableData.externalId;
+        if (asztal != undefined) {
+            SqlExecute("update asztalok set statusz='nyitott', nyito='SWIPE' " +
+                " where asztalszam='" + asztal + "'" +
+                "  and statusz='zart'");
+            let sorrend = 0;
+            order.orderItems.forEach(r => {
+                sorrend++;
+                if (r.variantData == undefined) {
+                    let cikkkod = r.menuItemData.externalId;
+                    let mennyiseg = r.quantity;
+                    let uzenet = r.additionalRequests;
+                    if (uzenet == undefined) {
+                        uzenet = "";
+                    }
+                    if (cikkkod != undefined) {
+                        let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto,uzenet,sorrend) ` +
+                            ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I", ${mysql.escape(uzenet)}, ${sorrend} ) `;
 
-    let asztal = order.tableData.externalId;
-    if (asztal != undefined) {
-        SqlExecute("update asztalok set statusz='nyitott', nyito='SWIPE' " +
-            " where asztalszam='" + asztal + "'" +
-            "  and statusz='zart'");
-        let sorrend = 0;
-        order.orderItems.forEach(r => {
-            sorrend++;
-            if (r.variantData == undefined) {
-                let cikkkod = r.menuItemData.externalId;
-                let mennyiseg = r.quantity;
-                let uzenet = r.additionalRequests;
-                if (uzenet == undefined) {
-                    uzenet = "";
-                }
-                if (cikkkod != undefined) {
-                    let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto,uzenet,sorrend) ` +
-                        ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I", ${mysql.escape(uzenet)}, ${sorrend} ) `;
-
-                    SqlExecute(sql);
+                        SqlExecute(sql);
+                    } else {
+                        console.log("Nincs GTSG azonosító megadva a cikknél!");
+                    }
                 } else {
-                    console.log("Nincs GTSG azonosító megadva a cikknél!");
-                }
-            } else {
-                let cikkkod = r.variantData.externalId;
-                let mennyiseg = r.quantity;
-                let uzenet = r.additionalRequests;
-                if (uzenet == undefined) {
-                    uzenet = "";
-                }
-                if (cikkkod != undefined) {
-                    let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto, uzenet,sorrend) ` +
-                        ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I", ${mysql.escape(uzenet)}, ${sorrend}) `;
-
-                    SqlExecute(sql);
-                } else {
-                    console.log("Nincs GTSG azonosító megadva a variansnál!");
-                }
-
-            }
-            if (r.selectablesData != undefined) {
-                r.selectablesData.forEach(s => {
-                    let cikkkod = s.externalId;
+                    let cikkkod = r.variantData.externalId;
                     let mennyiseg = r.quantity;
                     let uzenet = r.additionalRequests;
                     if (uzenet == undefined) {
@@ -441,18 +468,81 @@ export function newOrder(order: OrderEventData) {
 
                         SqlExecute(sql);
                     } else {
-                        console.log("Nincs GTSG azonosító megadva a selectables-nél!");
+                        console.log("Nincs GTSG azonosító megadva a variansnál!");
                     }
-                });
-            }
-        });
-    } else {
-        console.log("Nincs GTSG azonosító megadva az asztalnál!");
+
+                }
+                if (r.selectablesData != undefined) {
+                    r.selectablesData.forEach(s => {
+                        let cikkkod = s.externalId;
+                        let mennyiseg = r.quantity;
+                        let uzenet = r.additionalRequests;
+                        if (uzenet == undefined) {
+                            uzenet = "";
+                        }
+                        if (cikkkod != undefined) {
+                            let sql = `insert into rendelesek (cikkkod,mennyiseg,kezelokod,ar,brutto,asztalkod,szek,datum,kedvezmenyezheto, uzenet,sorrend) ` +
+                                ` values( ${cikkkod}, ${mennyiseg}, "SWIPE", 0, 0, "${asztal}", 1, "", "I", ${mysql.escape(uzenet)}, ${sorrend}) `;
+
+                            SqlExecute(sql);
+                        } else {
+                            console.log("Nincs GTSG azonosító megadva a selectables-nél!");
+                        }
+                    });
+                }
+            });
+        } else {
+            console.log("Nincs GTSG azonosító megadva az asztalnál!");
+        }
+    } catch (e) {
+        console.error("newOrder error:" + (e as Error).message);
     }
 }
 
 export function eloZaras(asztal: string) {
     SqlExecute(`update asztalok set pda=1 where asztalszam="${asztal}"`);
+}
+
+export function dbvaltozas() {
+    SqlExecute("ALTER TABLE cikk MODIFY rovidnev VARCHAR(80)");
+}
+
+export function idExists(cikkek: any[]) {
+    return new Promise<Record<number, boolean>>((resolve, reject) => {
+        let ret = "";
+        let idext: Record<number, boolean> = {};
+        cikkek.forEach(c => {
+            ret += c.externalId + ",";
+            idext[Number(c.externalId)] = false;
+        });
+        ret = ret.substring(0, ret.length - 1);
+
+        pool.getConnection((err: any, connection: any) => {
+
+            let sql = "select kod from cikk where kod in (" + ret + ") ";
+            console.log(sql);
+
+            connection.query(sql, (err: any, rows: any, fields: any) => {
+                console.log(`Rows: ${rows.length}`);
+                connection.release(); // return the connection to pool
+                if (err) {
+                    console.log(err);
+                    reject(err);
+                } else {
+                    rows.forEach((r: any[]) => {
+                        let num: number = r[fields[0].name];
+                        idext[num] = true;
+                    });
+
+                    resolve(idext);
+                }
+            });
+        });
+
+
+
+    });
+
 }
 
 export default router;
